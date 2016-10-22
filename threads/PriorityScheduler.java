@@ -5,6 +5,7 @@ import nachos.machine.*;
 import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 
 /**
  * A scheduler that chooses threads based on their priorities.
@@ -128,6 +129,8 @@ public class PriorityScheduler extends Scheduler {
     protected class PriorityQueue extends ThreadQueue {
 		PriorityQueue(boolean transferPriority) {
 		    this.transferPriority = transferPriority;
+		    this.priorityQueue = new LinkedList<ThreadState>();
+		    this.threadState = null;
 		}
 
 		public void waitForAccess(KThread thread) {
@@ -143,7 +146,11 @@ public class PriorityScheduler extends Scheduler {
 		public KThread nextThread() {
 		    Lib.assertTrue(Machine.interrupt().disabled());
 		    // implement me
-		    return null;
+		    ThreadState tempThreadState = this.pickNextThread();
+			
+			this.priorityQueue.remove(tempThreadState);
+
+			return tempThreadState.thread;
 		}
 
 		/**
@@ -155,7 +162,24 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		protected ThreadState pickNextThread() {
 		    // implement me
-		    return null;
+		    Machine.interrupt().disabled();
+
+		    //Implement a sort that orders the queue looking for the priority of every thread
+		    int n = this.priorityQueue.size();  
+        	ThreadState temp;  
+         	for(int i=0; i < n; i++){  
+        	    for(int j=1; j < (n-i); j++){  
+                    if(this.priorityQueue.get(j-1).getPriority() < this.priorityQueue.get(j).getPriority()){  
+                        //swap elements  
+                        temp = this.priorityQueue.get(j-1);  
+                        this.priorityQueue.set(j-1, this.priorityQueue.get(j));  
+                        this.priorityQueue.set(j, temp);  
+                    }            
+                }  
+         	} 
+
+		    Machine.interrupt().enable();
+		    return this.priorityQueue.peek();
 		}
 		
 		public void print() {
@@ -167,6 +191,8 @@ public class PriorityScheduler extends Scheduler {
 		 * <tt>true</tt> if this queue should transfer priority from waiting
 		 * threads to the owning thread.
 		 */
+		protected LinkedList<ThreadState> priorityQueue;
+		protected ThreadState threadState;
 		public boolean transferPriority;
     }
 
@@ -216,7 +242,7 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public void setPriority(int priority) {
 		    if (this.priority == priority)
-			return;
+				return;
 		    
 		    this.priority = priority;
 		    
