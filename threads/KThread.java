@@ -482,9 +482,15 @@ public class KThread {
         cero = new KThread(new PingTestListen(com)).setName("forked thread0"); 
         cero.fork(); 
         uno = new KThread(new PingTestSpeak(com)).setName("forked thread1"); 
-        uno.fork(); 
+        uno.fork();
+        dos = new KThread(new PingTestListen(com)).setName("forked thread2"); 
+        dos.fork(); 
+        tres = new KThread(new PingTestSpeak(com)).setName("forked thread3"); 
+        tres.fork(); 
         cero.join();
-        uno.join();
+        uno.join();       
+        dos.join();
+        tres.join();
     }
 
     public static KThread tres = null; 
