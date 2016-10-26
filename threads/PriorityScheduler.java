@@ -135,6 +135,7 @@ public class PriorityScheduler extends Scheduler {
 
 		public void waitForAccess(KThread thread) {
 		    Lib.assertTrue(Machine.interrupt().disabled());
+		    
 		    getThreadState(thread).waitForAccess(this);
 		}
 
@@ -149,9 +150,10 @@ public class PriorityScheduler extends Scheduler {
 		    if (priorityQueue.isEmpty())
 		    	return null;
 
-		    ThreadState ret = pickNextThread();
-		    priorityQueue.remove(ret);
-		    return ret.thread;
+		    ThreadState temp = pickNextThread();
+		    priorityQueue.remove(temp);
+		    
+		    return temp.thread;
 		}
 
 		/**
@@ -165,22 +167,23 @@ public class PriorityScheduler extends Scheduler {
 		    // implement me
 		    if (priorityQueue.isEmpty())
 		    	return null;
-		    int mp = -1;
-		    ThreadState tmp=null, ret=null;
-		    LinkedList<ThreadState> la = new LinkedList();
+
+		    int minPriority = -1;
+		    ThreadState temp = null;
+		    ThreadState next = null;
 		    Iterator i = priorityQueue.iterator();
 		    
 		    while(i.hasNext()){
-		    	tmp=(ThreadState)i.next();
-		    	if (tmp.getEffectivePriority() > mp) {
-		    		la.clear();
-		    		la.add(tmp);
-		    		ret=tmp;
-		    		mp=tmp.getPriority();
+		    	temp = (ThreadState)i.next();
+		    	if (temp.getEffectivePriority() > minPriority) {
+		    		next = temp;
+		    		minPriority = temp.getEffectivePriority();
 		    	}
 		    }
 		    
-		    return ret;
+		    next.setEffectivePriority(0);
+
+		    return next;
 		}
 		
 		public void print() {
@@ -213,10 +216,7 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public ThreadState(KThread thread) {
 		    this.thread = thread;
-		    if(thread.getName().equals("forked thread2")){
-		    	setPriority(4);
-		    }else
-			    setPriority(priorityDefault);
+		    this.effectivePriority = 0;
 		}
 
 		/**
@@ -235,9 +235,16 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public int getEffectivePriority() {
 		    // implement me
-		    return priority;
+		    if(effectivePriority == 0)
+		    	return priority;
+		    else
+		    	return effectivePriority;
 		}
 
+		public void setEffectivePriority(int effectivePriority) {
+		    // implement me
+		    this.effectivePriority = effectivePriority;
+		}
 		/**
 		 * Set the priority of the associated thread to the specified value.
 		 *
@@ -250,6 +257,7 @@ public class PriorityScheduler extends Scheduler {
 		    this.priority = priority;
 		    
 		    // implement me
+
 		}
 
 		/**
@@ -266,9 +274,11 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public void waitForAccess(PriorityQueue waitQueue) {
 		    // implement me
-		    waitQueue.priorityQueue.add(this);
-		    Lib.debug(dbgThread,thread.getName() + " va a entrar a esperar en " );
-		    queues.add(waitQueue);
+		    if( waitQueue.transferPriority && waitQueue.threadState!= null && (waitQueue.threadState.getPriority()<this.getPriority()) ){
+		    	waitQueue.threadState.setEffectivePriority(this.getPriority());
+		    }
+
+			waitQueue.priorityQueue.add(this);
 		}
 
 		/**
@@ -283,18 +293,12 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public void acquire(PriorityQueue waitQueue) {
 		    // implement me
-		    Lib.debug(dbgThread,thread.getName() + " salio de esperar en " );
-		    waitQueue.print();
-		    waitQueue.priorityQueue.remove(thread);
 		    waitQueue.threadState=this;
-		    queues.remove(waitQueue);
 		}	
 
 		/** The thread with which this object is associated. */	   
 		protected KThread thread;
-		/** The priority of the associated thread. */
 		protected int priority;
-		protected LinkedList<PriorityQueue> queues = new LinkedList();
-		private static final char dbgThread = 'p';
+		protected int effectivePriority;
     }
 }

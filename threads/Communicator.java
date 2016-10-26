@@ -14,11 +14,11 @@ import java.util.*;
 public class Communicator {
     private Lock lock;
 
-    private Condition waitingListeners;
-    private Condition listener; 
+    private Condition2 waitingListeners;
+    private Condition2 listener; 
 
-    private Condition waitingSpeakers;
-    private Condition speaker; 
+    private Condition2 waitingSpeakers;
+    private Condition2 speaker; 
      
     private boolean al; 
     private boolean as; 
@@ -33,11 +33,11 @@ public class Communicator {
     public Communicator() {
         lock = new Lock();
 
-        waitingListeners = new Condition(lock);
-        listener = new Condition(lock);
+        waitingListeners = new Condition2(lock);
+        listener = new Condition2(lock);
 
-        waitingSpeakers = new Condition(lock);
-        speaker = new Condition(lock);
+        waitingSpeakers = new Condition2(lock);
+        speaker = new Condition2(lock);
 
         al = false;
         as = false;
