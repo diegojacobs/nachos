@@ -645,7 +645,9 @@ public class KThread {
         PingTestPriority2();
         PingTestPriority3();     
 
-        //Tests Barco    
+        //Tests Barco 
+        Boat boat = new Boat();
+        boat.selfTest();   
     }
 
     public static KThread tres = null; 
