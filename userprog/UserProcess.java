@@ -3,7 +3,7 @@ package nachos.userprog;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
-
+import java.util.*;
 import java.io.EOFException;
 
 /**
@@ -389,13 +389,25 @@ public class UserProcess {
      */
     public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
 	switch (syscall) {
-	case syscallHalt:
-	    return handleHalt();
+    case syscallHalt:
+        return handleHalt();
+    case syscallCreate:
+        return create(a0);
+    case syscallOpen:
+        return open(a0);
+    case syscallRead:
+        return read(a0,a1,a2);
+    case syscallWrite:
+        return write(a0,a1,a2);
+    case syscallClose:
+        return close(a0);
+    case syscallUnlink:
+        return unlink(a0);
 
 
 	default:
 	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
-	    Lib.assertNotReached("Unknown system call!");
+	    Lib.assertNotReached("Unknown system call!" + syscall);
 	}
 	return 0;
     }
@@ -430,6 +442,152 @@ public class UserProcess {
 	}
     }
 
+    public int create(int dir_name){
+        String result = readVirtualMemoryString(dir_name, 256);
+    
+        if(result == null){
+            return -1;
+        }
+    
+        int fileDescriptor = getNewDescriptor();
+    
+        if(fileDescriptor == -1){
+            return -1; 
+        }
+
+        OpenFile file = ThreadedKernel.fileSystem.open(result, true);
+        
+        if (file == null) {
+            Lib.debug(dbgProcess, "\tcreate failed");
+            return -1;
+        }
+
+        fileDescriptorTable.set(fileDescriptor, file);
+        
+        return fileDescriptor;
+    }
+
+    public int open(int dir_name){
+        String result = readVirtualMemoryString(dir_name, 256);
+    
+        if(result == null){
+            return -1;
+        }
+
+        int fileDescriptor = getNewDescriptor();
+
+        if(fileDescriptor == -1){
+            return -1; 
+        }
+
+        OpenFile file = ThreadedKernel.fileSystem.open(result, true);
+
+        if (file == null) {
+            Lib.debug(dbgProcess, "\topen failed");
+            return -1;
+        }
+
+        fileDescriptorTable.set(fileDescriptor,file);
+
+        return fileDescriptor;        
+    }
+
+    public int unlink(int dir_name){
+        String result = readVirtualMemoryString(dir_name, 256);
+
+        if(result == null){
+            return -1;
+        }
+
+        boolean val = ThreadedKernel.fileSystem.remove(result);
+
+        if(val == false){
+            return -1;
+        }
+
+        return 0; 
+    }
+
+    public int close (int fileDescriptor){
+        OpenFile file=getFile(fileDescriptor);
+    
+        if(file==null){
+            return -1;
+        }
+    
+        file.close();
+    
+        fileDescriptorTable.set(fileDescriptor, null);
+    
+        return 0;
+    }
+
+    public int read(int buffer, int fileDescriptor, int count){
+        OpenFile file = getFile(fileDescriptor);
+    
+        if(file == null){
+            return -1;
+        }
+    
+        byte [] bufferI = new byte[count];
+    
+        int total = file.read(bufferI, 0, count);
+    
+        if(total == -1){
+            return -1;
+        }
+    
+        int writen = writeVirtualMemory(buffer, bufferI, 0, total);
+    
+        if(total != writen){
+            return -1;
+        }
+    
+        return total; 
+    }
+
+    public int write(int buffer, int fileDescriptor, int count){
+        OpenFile file = getFile(fileDescriptor);
+    
+        if(file == null){
+            return -1;
+        }
+    
+        byte [] bufferI = new byte[count];
+    
+        int read = readVirtualMemory(buffer, bufferI, 0, count);
+    
+        if(read == -1){
+            return -1;
+        }
+    
+        int total = file.write(bufferI, 0, read);
+    
+        if(total != read){
+            return -1;
+        }
+    
+        return total; 
+    }
+
+    public int getNewDescriptor(){
+        for(int i=2; i<fileDescriptorTable.size(); i++){
+            if(fileDescriptorTable.get(i) == null){
+                return i; 
+            }
+        }
+    
+        return -1;
+    }
+
+    public OpenFile getFile(int fileDescriptor) {
+        if(fileDescriptor>fileDescriptorTable.size()){
+            return null; 
+        }
+    
+        return (OpenFile)fileDescriptorTable.get(fileDescriptor);
+    }
+
     /** The program being run by this process. */
     protected Coff coff;
 
@@ -444,6 +602,8 @@ public class UserProcess {
     private int initialPC, initialSP;
     private int argc, argv;
 	
+    private ArrayList fileDescriptorTable = new ArrayList(16);
+
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
 }
