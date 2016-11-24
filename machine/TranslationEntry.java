@@ -13,6 +13,11 @@ public final class TranslationEntry {
      */
     public TranslationEntry() {
 	valid = false;
+	this.vpn = 0;
+	this.ppn = 0;
+	this.readOnly = true;
+	this.used = false;
+	this.dirty = false;
     }
 
     /**
