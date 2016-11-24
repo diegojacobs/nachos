@@ -148,34 +148,43 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
         
-        int transferred = 0;
+        int bytesTransferred = 0;
         while (length > 0 && offset < data.length) {
-            int addrOffset = vaddr % 1024;
+            int addressOffset = vaddr % 1024;
             int virtualPage = vaddr / 1024;
             
-            if (virtualPage >= pageTable.length || virtualPage < 0) {
+            if (pageTable.length <= virtualPage || virtualPage < 0) {
                 break;
             }
 
-            TranslationEntry pte = pageTable[virtualPage];
-            if (!pte.valid) {
+            TranslationEntry page = pageTable[virtualPage];
+            if (!page.valid) {
                 break;
             }
 
-            pte.used = true;
+            page.used = true;
             
-            int physPage = pte.ppn;
-            int physAddr = physPage * 1024 + addrOffset;
+            int physicalPage = page.ppn;
+            int physicalAddress = physicalPage * 1024 + addressOffset;
             
-            int transferLength = Math.min(data.length-offset, Math.min(length, 1024-addrOffset));
-            System.arraycopy(memory, physAddr, data, offset, transferLength);
+            int transferLength = Math.min(data.length-offset, Math.min(length, 1024 - addressOffset));
+            
+            /*
+            for (int i = physicalAddress; i < transferLength; i++){
+                memory[i] = data[offset+i];
+            }
+            */
+
+            System.arraycopy(memory, physicalAddress, data, offset, transferLength);
+
             vaddr += transferLength;
             offset += transferLength;
             length -= transferLength;
-            transferred += transferLength;
+
+            bytesTransferred += transferLength;
         }
         
-        return transferred;
+        return bytesTransferred;
     }
 
     
@@ -214,25 +223,33 @@ public class UserProcess {
         
         int transferred = 0;
         while (length > 0 && offset < data.length) {
-            int addrOffset = vaddr % 1024;
+            int addressOffset = vaddr % 1024;
             int virtualPage = vaddr / 1024;
             
-            if (virtualPage >= pageTable.length || virtualPage < 0) {
+            if (pageTable.length <= virtualPage || virtualPage < 0) {
                 break;
             }
             
-            TranslationEntry pte = pageTable[virtualPage];
-            if (!pte.valid || pte.readOnly) {
+            TranslationEntry page = pageTable[virtualPage];
+            if (!page.valid || page.readOnly) {
                 break;
             }
-            pte.used = true;
-            pte.dirty = true;
+            page.used = true;
+            page.dirty = true;
             
-            int physPage = pte.ppn;
-            int physAddr = physPage * 1024 + addrOffset;
+            int physicalPage = page.ppn;
+            int physicalAddress = physicalPage * 1024 + addressOffset;
             
-            int transferLength = Math.min(data.length-offset, Math.min(length, 1024-addrOffset));
-            System.arraycopy(data, offset, memory, physAddr, transferLength);
+            int transferLength = Math.min(data.length-offset, Math.min(length, 1024-addressOffset));
+
+            /*
+            for (int i = offset; i < transferLength; i++){
+                data[i] = memory[physAddr+i];
+            }
+            */
+
+            System.arraycopy(data, offset, memory, physicalAddress, transferLength);
+
             vaddr += transferLength;
             offset += transferLength;
             length -= transferLength;
@@ -377,7 +394,6 @@ public class UserProcess {
             for (int i=0; i<section.getLength(); i++) {
                 int vpn = section.getFirstVPN()+i;
 
-                // for now, just assume virtual addresses=physical addresses
                 int ppn = pageTable[vpn].ppn;
                 section.loadPage(i, ppn);
 
@@ -395,12 +411,13 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
-        for (int i=0; i<pageTable.length; i++) {
+        for (int i=0; i<pageTable.length; i++)
             if (pageTable[i].valid) {
                 UserKernel.unassignPage(pageTable[i].ppn);
                 pageTable[i].valid = false;
             }
-        }
+
+        coff.close();
     }    
 
     /**
@@ -537,7 +554,7 @@ public class UserProcess {
     }
 
     private int create(int p1){
-        String nombre = readVirtualMemoryString(p1,maxSize);
+        String nombre = readVirtualMemoryString(p1, maxSize);
 
         if (nombre == null)
             return -1;
@@ -558,7 +575,7 @@ public class UserProcess {
     }
 
     private int open(int p1){
-        String nombre = readVirtualMemoryString(p1,maxSize);
+        String nombre = readVirtualMemoryString(p1, maxSize);
 
         if (nombre == null)
             return -1;
@@ -584,16 +601,16 @@ public class UserProcess {
 
         OpenFile file = FileDescriptorTable.get(p1);
         byte[] buf = new byte[p3];
-        int bL = file.read(0, buf, 0, p3);
+        int bufferRead = file.read(0, buf, 0, p3);
 
-        if (bL <0)
+        if (bufferRead <0)
             return -1;
 
-        int bE = writeVirtualMemory(p2, buf, 0, bL);
-        if (bE < 0)                                          
+        int bufferWrite = writeVirtualMemory(p2, buf, 0, bufferRead);
+        if (bufferWrite < 0)                                          
             return -1;                                                
                                                                
-        return bE;                                                      
+        return bufferWrite;                                                      
     }
 
     private int write(int p1, int p2, int p3){
@@ -602,17 +619,17 @@ public class UserProcess {
 
         OpenFile file = FileDescriptorTable.get(p1);
         byte[] buf = new byte[p3];
-        int bL = readVirtualMemory(p2, buf);
+        int bufferRead = readVirtualMemory(p2, buf);
         
-        if (bL < 0)
+        if (bufferRead < 0)
             return -1;
 
-        int bE = file.write(buf, 0, bL);
+        int bufferWrite = file.write(buf, 0, bufferRead);
 
-        if (bE < 0)
+        if (bufferWrite < 0)
             return -1;
 
-        return bE;               
+        return bufferWrite;               
     }
 
     private int close(int p1){
@@ -620,8 +637,8 @@ public class UserProcess {
         if (!FileDescriptorTable.containsKey(p1))
             return -1;
 
-        OpenFile oF = FileDescriptorTable.get(p1);
-        oF.close();
+        OpenFile openFile = FileDescriptorTable.get(p1);
+        openFile.close();
         FileDescriptorTable.put(p1, null);
         
         return 0;
@@ -635,7 +652,7 @@ public class UserProcess {
             return -1;
 
         if (FileDescriptorTable.containsValue(archivo))
-            for(Integer key:FileDescriptorTable.keySet())
+            for(Integer key : FileDescriptorTable.keySet())
                 if (FileDescriptorTable.get(key).equals(archivo)) {
                     close(key);
                     break;
@@ -646,7 +663,7 @@ public class UserProcess {
 
     public int findSpace(){
         if (FileDescriptorTable.containsValue(null))
-            for(Integer key:FileDescriptorTable.keySet())
+            for(Integer key : FileDescriptorTable.keySet())
                 if (FileDescriptorTable.get(key) == null)
                     return key;
 
