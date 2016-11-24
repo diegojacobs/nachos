@@ -36,6 +36,10 @@ public class UserProcess {
             pageTable[i] = new TranslationEntry(i,i, true,false,false,false);
 
         FileDescriptorTable = new HashMap(FDs,(float) 1.2);
+        
+        FileDescriptorTable.put(0, UserKernel.console.openForReading());
+        FileDescriptorTable.put(1, UserKernel.console.openForWriting());
+
         for (int i=2; i<16; i++)
             FileDescriptorTable.put(i,null);
     }
